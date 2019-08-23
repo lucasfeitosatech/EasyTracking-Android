@@ -15,9 +15,27 @@ import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.TextView;
 
+import java.io.File;
+import java.io.IOException;
+import java.lang.reflect.Array;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+
 import lucasfeitosa.tech.easytracking.R;
+import lucasfeitosa.tech.easytracking.util.RestClient;
 import lucasfeitosa.tech.easytracking.view.PointsOverlayView;
 import lucasfeitosa.tech.easytracking.view.QRCodeReaderView;
+import okhttp3.ResponseBody;
+import okio.BufferedSink;
+import okio.Okio;
+import retrofit2.Response;
+import rx.Observable;
+import rx.Observer;
+import rx.Subscriber;
+import rx.android.schedulers.AndroidSchedulers;
+import rx.functions.Func1;
+import rx.schedulers.Schedulers;
 
 public class QRCodeReaderActivity extends AppCompatActivity implements ActivityCompat.OnRequestPermissionsResultCallback, QRCodeReaderView.OnQRCodeReadListener {
 
@@ -29,7 +47,7 @@ public class QRCodeReaderActivity extends AppCompatActivity implements ActivityC
     private CheckBox flashlightCheckBox;
     private CheckBox enableDecodingCheckBox;
     private PointsOverlayView pointsOverlayView;
-    private final String TAG = "teste";
+    private static final String TAG = "teste";
 
 
     @Override
@@ -67,8 +85,65 @@ public class QRCodeReaderActivity extends AppCompatActivity implements ActivityC
 
         Log.d(TAG, "onQRCodeRead: " + rawData.length);
         qrCodeReaderView.stopCamera();
+        short x = getXfromQRResult(rawData);
+        String id = getIdFromQRResult(rawData).toLowerCase();
+        downloadRedundancy(id);
+
+    }
+
+    public short getXfromQRResult(byte[] rawData){
+        byte[] xByteArray = new byte[2];
+        xByteArray[0] = rawData[0];
+        xByteArray[1] = rawData[1];
+        ByteBuffer wrapped = ByteBuffer.wrap(xByteArray); // big-endian by default
+        short num = wrapped.getShort();
+        Log.d(TAG, "onQRCodeRead: " + num);
+        return num;
+    }
+
+    public String getIdFromQRResult(byte[] rawData){
 
 
+        StringBuilder hex = new StringBuilder();
+        for(int i=2;i <34;i++){
+            byte b = rawData[i];
+            String s1 = String.format("%8s", Integer.toBinaryString(b & 0xFF)).replace(' ', '0');
+            //Log.d(TAG, "getIdFromQRResult: " + binaryToHex(s1));
+            hex.append(binaryToHex(s1));
+        }
+
+        return hex.toString();
+    }
+    public static String binaryToHex(String binary) {
+        return String.format("%02X", Long.parseLong(binary,2)) ;
+    }
+
+    public String addPadding(String mByte,int size){
+        int dif = size - mByte.length();
+        String rByte = "";
+        if( dif != 0) {
+            for(int i=0;i<dif;i++){
+                rByte = rByte.concat("0");
+            }
+        }
+        rByte = rByte.concat(mByte);
+        return rByte;
+    }
+
+    public void downloadRedundancy(String id){
+        RestClient.get()
+                .downloadRedundancy("http://lucasfeitosa.online/red/" + id + ".red")
+                .flatMap(responseBody -> {
+                    try {
+                        Log.d(TAG, "downloadRedundancy: " + responseBody.string().length());
+                        return Observable.just(responseBody.string());
+                    } catch (IOException e) {
+                        return Observable.error(e);
+                    }
+                })
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe();
     }
 
     @Override public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
