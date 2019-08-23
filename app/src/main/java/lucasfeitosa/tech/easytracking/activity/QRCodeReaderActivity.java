@@ -23,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 import lucasfeitosa.tech.easytracking.R;
+import lucasfeitosa.tech.easytracking.model.EasyTracking;
 import lucasfeitosa.tech.easytracking.util.RestClient;
 import lucasfeitosa.tech.easytracking.view.PointsOverlayView;
 import lucasfeitosa.tech.easytracking.view.QRCodeReaderView;
@@ -48,6 +49,8 @@ public class QRCodeReaderActivity extends AppCompatActivity implements ActivityC
     private CheckBox enableDecodingCheckBox;
     private PointsOverlayView pointsOverlayView;
     private static final String TAG = "teste";
+
+    private EasyTracking easyTracking;
 
 
     @Override
@@ -86,7 +89,9 @@ public class QRCodeReaderActivity extends AppCompatActivity implements ActivityC
         Log.d(TAG, "onQRCodeRead: " + rawData.length);
         qrCodeReaderView.stopCamera();
         short x = getXfromQRResult(rawData);
+        easyTracking = new EasyTracking(x);
         String id = getIdFromQRResult(rawData).toLowerCase();
+        String b = getInfoBytesFromQRResult(rawData);
         downloadRedundancy(id);
 
     }
@@ -113,6 +118,18 @@ public class QRCodeReaderActivity extends AppCompatActivity implements ActivityC
         }
 
         return hex.toString();
+    }
+
+    public String getInfoBytesFromQRResult(byte[] rawData) {
+
+        StringBuilder bits = new StringBuilder();
+        for(int i=34;i <rawData.length;i++){
+            byte b = rawData[i];
+            String s1 = String.format("%8s", Integer.toBinaryString(b & 0xFF)).replace(' ', '0');
+            bits.append(s1);
+        }
+
+        return bits.toString();
     }
     public static String binaryToHex(String binary) {
         return String.format("%02X", Long.parseLong(binary,2)) ;
