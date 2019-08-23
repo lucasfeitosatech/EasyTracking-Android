@@ -1,5 +1,7 @@
 package lucasfeitosa.tech.easytracking.model;
 
+import android.util.Log;
+
 public class EasyTracking {
 
     private short x;

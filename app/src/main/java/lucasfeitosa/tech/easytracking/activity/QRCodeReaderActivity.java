@@ -15,10 +15,16 @@ import android.widget.CheckBox;
 import android.widget.CompoundButton;
 import android.widget.TextView;
 
+import com.google.zxing.common.reedsolomon.GenericGF;
+import com.google.zxing.common.reedsolomon.ReedSolomonDecoder;
+import com.google.zxing.common.reedsolomon.ReedSolomonException;
+
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.IntBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
@@ -51,6 +57,7 @@ public class QRCodeReaderActivity extends AppCompatActivity implements ActivityC
     private static final String TAG = "teste";
 
     private EasyTracking easyTracking;
+    private String binary;
 
 
     @Override
@@ -91,7 +98,7 @@ public class QRCodeReaderActivity extends AppCompatActivity implements ActivityC
         short x = getXfromQRResult(rawData);
         easyTracking = new EasyTracking(x);
         String id = getIdFromQRResult(rawData).toLowerCase();
-        String b = getInfoBytesFromQRResult(rawData);
+        this.binary = getInfoBytesFromQRResult(rawData);
         downloadRedundancy(id);
 
     }
@@ -129,7 +136,36 @@ public class QRCodeReaderActivity extends AppCompatActivity implements ActivityC
             bits.append(s1);
         }
 
-        return bits.toString();
+        return bits.substring(0,bits.length() - easyTracking.getPadQR());
+    }
+
+    public void downloadRedundancy(String id){
+        RestClient.get()
+                .downloadRedundancy("http://lucasfeitosa.online/red/" + id + ".red")
+                .flatMap(responseBody -> {
+                    try {
+                        String info = responseBody.string();
+                        return Observable.just(responseBody.string());
+                    } catch (IOException e) {
+                        return Observable.error(e);
+                    }
+                })
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe();
+    }
+
+    public void decode2bitsInfo(int[] info){
+
+        int[] infoRS = new int[easyTracking.getN()];
+        //Varaible to count 8 bits and form a byte
+        GenericGF gf = new GenericGF(285, 256, 0);
+        ReedSolomonDecoder decoder = new ReedSolomonDecoder(gf);
+        try {
+            decoder.decode(infoRS, 2 * easyTracking.getK()); //Correct the 85 symbols of data
+        } catch (ReedSolomonException e) {
+            e.printStackTrace();
+        }
     }
     public static String binaryToHex(String binary) {
         return String.format("%02X", Long.parseLong(binary,2)) ;
@@ -147,20 +183,19 @@ public class QRCodeReaderActivity extends AppCompatActivity implements ActivityC
         return rByte;
     }
 
-    public void downloadRedundancy(String id){
-        RestClient.get()
-                .downloadRedundancy("http://lucasfeitosa.online/red/" + id + ".red")
-                .flatMap(responseBody -> {
-                    try {
-                        Log.d(TAG, "downloadRedundancy: " + responseBody.string().length());
-                        return Observable.just(responseBody.string());
-                    } catch (IOException e) {
-                        return Observable.error(e);
-                    }
-                })
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe();
+    public String toBinaryString(String s) {
+
+        char[] cArray=s.toCharArray();
+
+        StringBuilder sb=new StringBuilder();
+
+        for(char c:cArray)
+        {
+            String cBinaryString=Integer.toBinaryString((int)c);
+            sb.append(cBinaryString);
+        }
+
+        return sb.toString();
     }
 
     @Override public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
