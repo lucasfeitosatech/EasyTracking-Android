@@ -10,6 +10,6 @@ import rx.Observable;
 public interface RetrofitInterface {
 
     @GET
-    Observable<ResponseBody> downloadRedundancy(@Url String fileUrl);
+    Observable<Response<ResponseBody>> downloadRedundancy(@Url String fileUrl);
 
 }

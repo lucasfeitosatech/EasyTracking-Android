@@ -19,8 +19,11 @@ import com.google.zxing.common.reedsolomon.GenericGF;
 import com.google.zxing.common.reedsolomon.ReedSolomonDecoder;
 import com.google.zxing.common.reedsolomon.ReedSolomonException;
 
+import org.apache.commons.io.IOUtils;
+
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -142,11 +145,19 @@ public class QRCodeReaderActivity extends AppCompatActivity implements ActivityC
     public void downloadRedundancy(String id){
         RestClient.get()
                 .downloadRedundancy("http://lucasfeitosa.online/red/" + id + ".red")
-                .flatMap(responseBody -> {
+                .flatMap(response -> {
                     try {
-                        String info = responseBody.string();
-                        return Observable.just(responseBody.string());
-                    } catch (IOException e) {
+                        Log.d(TAG, "downloadRedundancy: " + response.body().byteStream());
+                        InputStream is = response.body().byteStream();
+                        byte[] mbytes = IOUtils.toByteArray(is);
+                        int[] data = new int[mbytes.length];
+                        for (int i = 0; i < mbytes.length; i++) {
+                            data[i] = mbytes[i] & 0xFF;
+                        }
+                        decode2bitsInfo(data);
+
+                        return Observable.just(response);
+                    } catch (Exception e) {
                         return Observable.error(e);
                     }
                 })
@@ -161,8 +172,14 @@ public class QRCodeReaderActivity extends AppCompatActivity implements ActivityC
         //Varaible to count 8 bits and form a byte
         GenericGF gf = new GenericGF(285, 256, 0);
         ReedSolomonDecoder decoder = new ReedSolomonDecoder(gf);
+        int j = 0;
+        for(int i = easyTracking.getK();i<infoRS.length;i++){
+            infoRS[i] = info[j];
+            j++;
+        }
         try {
             decoder.decode(infoRS, 2 * easyTracking.getK()); //Correct the 85 symbols of data
+            Log.d(TAG, "decode2bitsInfo: " + Arrays.toString(infoRS));
         } catch (ReedSolomonException e) {
             e.printStackTrace();
         }
